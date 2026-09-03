@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paisajes de Onda — generador visual</title>
+<style>
+  :root {
+    --fondo: #14161c;
+    --panel: #1d2027;
+    --borde: #2c3140;
+    --texto: #d7dbe3;
+    --tenue: #8b93a4;
+    --acento: #d81e63;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    height: 100vh;
+    background: var(--fondo);
+    color: var(--texto);
+    font: 14px/1.4 system-ui, sans-serif;
+  }
+  #zona {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    min-width: 0;
+  }
+  canvas {
+    width: 100%;
+    max-width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border: 1px solid var(--borde);
+    border-radius: 6px;
+    display: block;
+  }
+  aside {
+    background: var(--panel);
+    border-left: 1px solid var(--borde);
+    overflow-y: auto;
+    padding: 14px;
+  }
+  h1 { font-size: 15px; margin: 0 0 10px; letter-spacing: .4px; }
+  h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    color: var(--tenue);
+    margin: 16px 0 6px;
+    border-bottom: 1px solid var(--borde);
+    padding-bottom: 4px;
+  }
+  .fila { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0; }
+  .fila label { color: var(--tenue); flex: 0 0 auto; }
+  .fila input[type="range"] { flex: 1; accent-color: var(--acento); }
+  .fila input[type="color"] {
+    width: 44px; height: 24px; border: 1px solid var(--borde);
+    border-radius: 4px; background: none; padding: 1px; cursor: pointer;
+  }
+  .fila input[type="checkbox"] { accent-color: var(--acento); }
+  .fila output { flex: 0 0 44px; text-align: right; font-variant-numeric: tabular-nums; }
+  select, button {
+    width: 100%;
+    background: var(--fondo);
+    color: var(--texto);
+    border: 1px solid var(--borde);
+    border-radius: 4px;
+    padding: 6px 8px;
+    font: inherit;
+    cursor: pointer;
+  }
+  #exportar { margin-top: 14px; }
+  #exportar:hover { border-color: var(--acento); }
+</style>
+
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+
+<main id="zona">
+  <canvas id="lienzo" width="1600" height="900"></canvas>
+</main>
+
+<aside id="panel">
+  <h1>Paisajes de Onda</h1>
+  <div class="fila">
+    <label for="ctl-preset">Preset</label>
+  </div>
+  <select id="ctl-preset">
+    <option value="img1">Imagen 1 — Azul mono</option>
+    <option value="img2" selected>Imagen 2 — Atardecer</option>
+    <option value="libre">Libre (edición manual)</option>
+  </select>
+  <div id="controles"></div>
+  <button id="exportar">Exportar PNG</button>
+</aside>
+
+<script src="motor.js"></script>
+<script src="presets.js"></script>
+<script>
+'use strict';
+
+// ---------- estado ----------
+const lienzo = document.getElementById('lienzo');
+const ctx = lienzo.getContext('2d');
+const estado = {
+  config: Presets.configDesde('img2'),
+  t: 0,          // tiempo de animación (s)
+  ultimo: 0      // timestamp del frame anterior
+};
+
+// ---------- acceso por ruta ('ondas.base') ----------
+function getEn(obj, ruta) { return ruta.split('.').reduce((o, k) => o[k], obj); }
+function setEn(obj, ruta, v) {
+  const ks = ruta.split('.');
+  const o = ks.slice(0, -1).reduce((p, k) => p[k], obj);
+  o[ks[ks.length - 1]] = v;
+}
+function hexArgba(hex, a) {
+  const c = Motor.hexARgb(hex);
+  return `rgba(${c.r},${c.g},${c.b},${a})`;
+}
+
+// ---------- pintores por tipo de capa ----------
+function pintarCurva(capa, w, h) {
+  // Onda o montaña: rellena bajo la curva hasta el fondo.
+  ctx.globalAlpha = Math.min(1, capa.alpha);
+  ctx.fillStyle = capa.color;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  for (let x = 0; x <= w; x += 4) {
+    ctx.lineTo(x, Motor.yOnda(capa, x, w, h, estado.t));
+  }
+  ctx.lineTo(w, h);
+  ctx.lineTo(0, h);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+function pintarSol(capa, w, h) {
+  const cx = capa.x * w, cy = capa.y * h, r = Math.max(1, capa.radio * h);
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+  g.addColorStop(0, hexArgba(capa.color, capa.opacidad));
+  g.addColorStop(1, hexArgba(capa.color, 0));
+  ctx.fillStyle = g;
+  ctx.fillRect(cx - r, cy - r, 2 * r, 2 * r);
+}
+
+function pintarLinea(capa, w, h) {
+  const y = capa.y * h;
+  const gh = Math.max(2, capa.grosor * h);
+  const g = ctx.createLinearGradient(0, y - gh / 2, 0, y + gh / 2);
+  g.addColorStop(0, hexArgba(capa.color, 0));
+  g.addColorStop(0.5, hexArgba(capa.color, 0.55));
+  g.addColorStop(1, hexArgba(capa.color, 0));
+  ctx.fillStyle = g;
+  ctx.fillRect(0, y - gh / 2, w, gh);
+}
+
+function pintarBanda(capa, w, h, vertical) {
+  ctx.fillStyle = capa.color;
+  if (vertical) ctx.fillRect(w - capa.grosor * w, 0, capa.grosor * w, h);
+  else ctx.fillRect(0, 0, w, capa.grosor * h);
+}
+
+function dibujar() {
+  const w = lienzo.width, h = lienzo.height;
+  for (const capa of Motor.plan(estado.config)) {
+    switch (capa.tipo) {
+      case 'cielo': {
+        const g = ctx.createLinearGradient(0, 0, 0, h);
+        g.addColorStop(0, capa.colorArriba);
+        g.addColorStop(1, capa.colorAbajo);
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, w, h);
+        break;
+      }
+      case 'montana':
+      case 'onda':
+        pintarCurva(capa, w, h);
+        break;
+      case 'sol':
+        pintarSol(capa, w, h);
+        break;
+      case 'linea':
+        pintarLinea(capa, w, h);
+        break;
+      case 'bandaSup':
+        pintarBanda(capa, w, h, false);
+        break;
+      case 'bandaDer':
+        pintarBanda(capa, w, h, true);
+        break;
+    }
+  }
+}
+
+// ---------- bucle de animación ----------
+function bucle(ts) {
+  const v = estado.config.ondas.velocidad;
+  const dt = Math.min(0.1, (ts - estado.ultimo) / 1000);
+  estado.ultimo = ts;
+  if (v > 0) {
+    estado.t += dt * v;
+    dibujar();
+  }
+  requestAnimationFrame(bucle);
+}
+
+// ---------- redimensionado ----------
+function dimensionar() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = lienzo.getBoundingClientRect();
+  const w = Math.max(320, Math.round(rect.width * dpr));
+  lienzo.width = w;
+  lienzo.height = Math.round(w * 9 / 16);
+  dibujar();
+}
+
+// ---------- panel de control ----------
+const ESPEC = [
+  { seccion: 'Cielo' },
+  { id: 'cieloArriba', label: 'Arriba', tipo: 'color', ruta: 'cielo.arriba' },
+  { id: 'cieloAbajo', label: 'Abajo', tipo: 'color', ruta: 'cielo.abajo' },
+  { seccion: 'Sol / brillo' },
+  { id: 'solActivo', label: 'Visible', tipo: 'bool', ruta: 'sol.activo' },
+  { id: 'solX', label: 'X', tipo: 'num', min: 0, max: 1, step: .01, ruta: 'sol.x' },
+  { id: 'solY', label: 'Y', tipo: 'num', min: 0, max: 1, step: .01, ruta: 'sol.y' },
+  { id: 'solRadio', label: 'Radio', tipo: 'num', min: .05, max: 1, step: .01, ruta: 'sol.radio' },
+  { id: 'solColor', label: 'Color', tipo: 'color', ruta: 'sol.color' },
+  { id: 'solOp', label: 'Opacidad', tipo: 'num', min: 0, max: 1, step: .01, ruta: 'sol.opacidad' },
+  { seccion: 'Montañas' },
+  { id: 'monCapas', label: 'Capas', tipo: 'ent', min: 0, max: 4, step: 1, ruta: 'montanas.capas' },
+  { id: 'monCerca', label: 'Color cerca', tipo: 'color', ruta: 'montanas.color' },
+  { id: 'monTras', label: 'Color lejos', tipo: 'color', ruta: 'montanas.colorTras' },
+  { id: 'monOp', label: 'Opacidad', tipo: 'num', min: 0, max: 1, step: .01, ruta: 'montanas.opacidad' },
+  { id: 'monRug', label: 'Rugosidad', tipo: 'num', min: 0, max: 1, step: .01, ruta: 'montanas.rugosidad' },
+  { id: 'monAlt', label: 'Altura (Y)', tipo: 'num', min: .2, max: .9, step: .01, ruta: 'montanas.altura' },
+  { seccion: 'Ondas' },
+  { id: 'ondCapas', label: 'Capas', tipo: 'ent', min: 1, max: 8, step: 1, ruta: 'ondas.capas' },
+  { id: 'ondBase', label: 'Base (Y)', tipo: 'num', min: .1, max: .95, step: .01, ruta: 'ondas.base' },
+  { id: 'ondSep', label: 'Separación', tipo: 'num', min: 0, max: .2, step: .005, ruta: 'ondas.separacion' },
+  { id: 'ondAmp', label: 'Amplitud', tipo: 'num', min: 0, max: .3, step: .005, ruta: 'ondas.amplitud' },
+  { id: 'ondFreq', label: 'Frecuencia', tipo: 'num', min: .2, max: 4, step: .05, ruta: 'ondas.frecuencia' },
+  { id: 'ondVel', label: 'Velocidad', tipo: 'num', min: 0, max: 1, step: .01, ruta: 'ondas.velocidad' },
+  { id: 'ondAlfa', label: 'Opacidad', tipo: 'num', min: 0, max: 1, step: .01, ruta: 'ondas.alfa' },
+  { id: 'ondTras', label: 'Color tras', tipo: 'color', ruta: 'ondas.colorTras' },
+  { id: 'ondFrente', label: 'Color frente', tipo: 'color', ruta: 'ondas.colorFrente' },
+  { seccion: 'Marco' },
+  { id: 'lineaAct', label: 'Línea horizonte', tipo: 'bool', ruta: 'marco.linea.activo' },
+  { id: 'lineaY', label: 'Y', tipo: 'num', min: 0, max: 1, step: .01, ruta: 'marco.linea.y' },
+  { id: 'lineaG', label: 'Grosor', tipo: 'num', min: .01, max: .2, step: .005, ruta: 'marco.linea.grosor' },
+  { id: 'lineaC', label: 'Color', tipo: 'color', ruta: 'marco.linea.color' },
+  { id: 'supAct', label: 'Banda superior', tipo: 'bool', ruta: 'marco.bandaSup.activo' },
+  { id: 'supG', label: 'Grosor', tipo: 'num', min: .005, max: .1, step: .005, ruta: 'marco.bandaSup.grosor' },
+  { id: 'supC', label: 'Color', tipo: 'color', ruta: 'marco.bandaSup.color' },
+  { id: 'derAct', label: 'Banda derecha', tipo: 'bool', ruta: 'marco.bandaDer.activo' },
+  { id: 'derG', label: 'Grosor', tipo: 'num', min: .005, max: .2, step: .005, ruta: 'marco.bandaDer.grosor' },
+  { id: 'derC', label: 'Color', tipo: 'color', ruta: 'marco.bandaDer.color' }
+];
+
+function construirPanel() {
+  const cont = document.getElementById('controles');
+  for (const c of ESPEC) {
+    if (c.seccion) {
+      const h2 = document.createElement('h2');
+      h2.textContent = c.seccion;
+      cont.appendChild(h2);
+      continue;
+    }
+    const fila = document.createElement('div');
+    fila.className = 'fila';
+    const label = document.createElement('label');
+    label.textContent = c.label;
+    label.htmlFor = 'ctl-' + c.id;
+
+    const el = document.createElement('input');
+    el.id = 'ctl-' + c.id;
+    if (c.tipo === 'bool') {
+      el.type = 'checkbox';
+    } else if (c.tipo === 'color') {
+      el.type = 'color';
+    } else {
+      el.type = 'range';
+      el.min = c.min;
+      el.max = c.max;
+      el.step = c.step;
+    }
+
+    const out = document.createElement('output');
+    fila.append(label, el, out);
+    cont.appendChild(fila);
+
+    const leer = () => (c.tipo === 'bool') ? el.checked : (c.tipo === 'color') ? el.value : parseFloat(el.value);
+    el.addEventListener('input', () => {
+      setEn(estado.config, c.ruta, leer());
+      document.getElementById('ctl-preset').value = 'libre';
+      out.textContent = (typeof leer() === 'number') ? leer().toFixed(2) : '';
+      dibujar();
+    });
+
+    // referencia para sincronizar
+    c.el = el;
+    c.out = out;
+  }
+}
+
+function sincronizarPanel() {
+  for (const c of ESPEC) {
+    if (c.seccion || !c.el) continue;
+    const val = getEn(estado.config, c.ruta);
+    if (c.tipo === 'bool') c.el.checked = !!val;
+    else c.el.value = val;
+    if (c.out) c.out.textContent = (typeof val === 'number') ? val.toFixed(2) : '';
+  }
+}
+
+// ---------- preset ----------
+const selPreset = document.getElementById('ctl-preset');
+selPreset.addEventListener('change', () => {
+  if (selPreset.value === 'libre') return;
+  estado.config = Presets.configDesde(selPreset.value);
+  estado.t = 0;
+  sincronizarPanel();
+  dibujar();
+});
+
+// ---------- exportar PNG ----------
+document.getElementById('exportar').addEventListener('click', () => {
+  const a = document.createElement('a');
+  a.href = lienzo.toDataURL('image/png');
+  a.download = 'paisaje-ondas.png';
+  a.click();
+});
+
+// ---------- arranque ----------
+construirPanel();
+sincronizarPanel();
+dimensionar();
+window.addEventListener('resize', dimensionar);
+requestAnimationFrame((ts) => { estado.ultimo = ts; requestAnimationFrame(bucle); });
+</script>
+
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('PWA: Service Worker registrado', reg))
+          .catch(err => console.error('PWA: Error al registrar', err));
+      });
+    }
+  </script>
+</body>
+</html>

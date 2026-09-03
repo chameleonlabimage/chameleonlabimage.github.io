@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>L-Predictor --  Lecto Predictor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f8f9fa;
+            color: #1a1a2e;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+            transition: background 0.3s, color 0.3s;
+        }
+        h1 {
+            margin-bottom: 2rem;
+            color: #4f46e5;
+            font-size: 1.5rem;
+        }
+        .container {
+            display: flex;
+            gap: 2rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .box {
+            flex: 1;
+            min-width: 280px;
+            max-width: 95%;
+            background: white;
+            border-radius: 12px;
+            padding: 1rem;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+        }
+        .btn-group {
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .btn {
+            padding: 0.6rem 1.2rem;
+            border: none;
+            border-radius: 8px;
+            background: #4f46e5;
+            color: white;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+        }
+        .btn:hover {
+            background: #4338ca;
+        }
+        .btn.secondary {
+            background: #6c757d;
+        }
+        .btn.secondary:hover {
+            background: #5a6268;
+        }
+        .btn.active {
+            outline: 3px solid #fbbf24;
+        }
+        .box h2 {
+            font-size: 0.9rem;
+            color: #6c757d;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        textarea {
+            width: 100%;
+            height: 350px;
+            padding: 0.75rem;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            resize: vertical;
+            font-family: 'Inter', sans-serif;
+            white-space: pre-wrap;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #4f46e5;
+        }
+        .controls {
+            margin-top: 0.75rem;
+            padding: 0.75rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .controls label {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .slider-container input[type="range"] {
+            flex: 1;
+            cursor: pointer;
+        }
+        .slider-container span {
+            font-size: 0.8rem;
+            color: #6c757d;
+            min-width: 40px;
+            text-align: right;
+        }
+        .help-text {
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            background: #e7f3ff;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            color: #0c5460;
+        }
+        
+        /* Estilos Modo Noche */
+        body.night-mode {
+            background: #1a1a2e;
+            color: #e9ecef;
+        }
+        body.night-mode .box {
+            background: #16213e;
+            color: #e9ecef;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+        }
+        body.night-mode .box h2 {
+            color: #a2a2d0;
+        }
+        body.night-mode .controls {
+            background: #0f3460;
+        }
+        body.night-mode .help-text {
+            background: #1a4d6e;
+            color: #e9ecef;
+        }
+        body.night-mode textarea {
+            background: #0f3460;
+            color: white;
+            border-color: #1a4d6e;
+        }
+        body.night-mode textarea:focus {
+            border-color: #4f46e5;
+        }
+
+        /* Modo Resultados */
+        body.results-mode #inputBox {
+            display: none;
+        }
+        body.results-mode .btn-group .btn:not(#resultsBtn) {
+            display: none;
+        }
+        body.results-mode .container {
+            justify-content: center;
+        }
+        body.results-mode .box {
+            max-width: 90%;
+        }
+        body.results-mode #mainTitle {
+            font-size: 2rem;
+        }
+        body.results-mode #outputText {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: pan-y;
+        }
+    </style>
+
+  <link rel="manifest" href="manifest.json">
+</head>
+<body id="bodyTag">
+    <h1 id="mainTitle">🧠L-Predictor --  Lecto Predictor</h1>
+
+    <div class="btn-group">
+        <button id="nightModeBtn" class="btn secondary">Modo Noche</button>
+        <button id="fullscreenBtn" class="btn secondary">Fullscreen</button>
+        <button id="resultsBtn" class="btn">Mostrar Resultados</button>
+    </div>
+
+    <div class="container">
+        <div class="box" id="inputBox">
+            <h2><span style="font-size: 1.2rem;">📝</span> Texto Original</h2>
+            <textarea id="inputText" placeholder="Escribe o pega tu texto aquí...">Hiperfocalizado es un estado de atención intensa y concentrada en una tarea específica.
+
+Cuando estás hiperfocalizado, puedes ignorar distracciones y mantener tu enfoque en lo que importa.
+
+Este estado es común en personas con capacidades aumentadas cuando encuentran algo que realmente les apasiona.</textarea>
+            <div class="controls">
+                <label>Porcentaje en Bold (palabras > 3 letras): <span id="boldValue">30%</span></label>
+                <div class="slider-container">
+                    <input type="range" id="boldPercent" min="20" max="80" step="5" value="30">
+                    <span id="boldDisplay">30%</span>
+                </div>
+                <label style="margin-top: 0.5rem;">Opacidad del Resto: <span id="opacityValue">20%</span></label>
+                <div class="slider-container">
+                    <input type="range" id="opacity" min="0" max="50" step="5" value="20">
+                    <span id="opacityDisplay">20%</span>
+                </div>
+                <div class="help-text">
+                    <strong>📌 Reglas:</strong>
+                    <ul style="margin-left: 1.25rem; margin-top: 0.25rem;">
+                        <li>Palabras ≤ 3 letras: <strong>100% Bold</strong> (siempre visibles)</li>
+                        <li>Palabras > 3 letras: <span id="helpBold">30%</span> Bold + resto con opacidad ajustable</li>
+                        <li>Números y símbolos: <strong>siempre 100% Bold</strong></li>
+                        <li>Estructura: <strong>se mantiene</strong> (saltos, párrafos, tabulaciones)</li>
+                        <li>Caracteres especiales: <strong>se agregan al final</strong> de la palabra</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="box" id="outputBox">
+            <h2><span style="font-size: 1.2rem;">🧠</span> Lecto Predictor Procesado</h2>
+            <div id="outputText"></div>
+        </div>
+    </div>
+
+    <div id="gestureIndicator" style="position: fixed; bottom: 20px; padding: 10px 20px; background: rgba(79, 70, 229, 0.9); color: white; border-radius: 30px; display: none; font-size: 0.9rem; pointer-events: none; z-index: 1000;">
+        Ajustando...
+    </div>
+
+    <script>
+        const inputText = document.getElementById('inputText');
+        const outputText = document.getElementById('outputText');
+        const opacitySlider = document.getElementById('opacity');
+        const opacityDisplay = document.getElementById('opacityDisplay');
+        const opacityValue = document.getElementById('opacityValue');
+        const boldPercentSlider = document.getElementById('boldPercent');
+        const boldDisplay = document.getElementById('boldDisplay');
+        const boldValue = document.getElementById('boldValue');
+        const helpBold = document.getElementById('helpBold');
+        
+        const nightModeBtn = document.getElementById('nightModeBtn');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const resultsBtn = document.getElementById('resultsBtn');
+        const bodyTag = document.getElementById('bodyTag');
+        const inputBox = document.getElementById('inputBox');
+        const outputBox = document.getElementById('outputBox');
+        const mainTitle = document.getElementById('mainTitle');
+        const gestureIndicator = document.getElementById('gestureIndicator');
+
+        function hasNumbers(word) {
+            return /\d/.test(word);
+        }
+
+        function getLettersArray(word) {
+            const letters = [];
+            for (let i = 0; i < word.length; i++) {
+                const char = word[i];
+                const code = char.codePointAt(0);
+                if ((code >= 65 && code <= 90) ||
+                    (code >= 97 && code <= 122) ||
+                    code > 127) {
+                    letters.push(char);
+                }
+            }
+            return letters;
+        }
+
+        function getSpecialChars(word) {
+            const specials = [];
+            for (let i = 0; i < word.length; i++) {
+                const char = word[i];
+                const code = char.codePointAt(0);
+                if (!((code >= 65 && code <= 90) ||
+                      (code >= 97 && code <= 122) ||
+                      code > 127)) {
+                    specials.push(char);
+                }
+            }
+            return specials;
+        }
+
+        function processWord(word, boldPercent, restOpacity) {
+            const lettersArray = getLettersArray(word);
+            const lettersLength = lettersArray.length;
+            const specialChars = getSpecialChars(word);
+
+            const boldPercentage = boldPercent / 100;
+            const boldChars = Math.max(1, Math.floor(lettersLength * boldPercentage));
+
+            if (lettersLength === 0 || boldChars >= lettersLength) {
+                return word;
+            }
+
+            const boldPart = lettersArray.slice(0, boldChars).join('');
+            const restPart = lettersArray.slice(boldChars).join('');
+
+            let html = `<span style="font-weight: 700; opacity: 1;">${boldPart}</span>`;
+            html += `<span style="font-weight: 400; opacity: ${restOpacity / 100};">${restPart}</span>`;
+
+            if (specialChars.length > 0) {
+                html += `<span style="font-weight: 700; opacity: 1;">${specialChars.join('')}</span>`;
+            }
+
+            return html;
+        }
+
+        function processText(text, boldPercent, restOpacity) {
+            const lines = text.split('\n');
+            let resultHTML = '<div style="font-family: Inter, sans-serif; font-size: 1rem; line-height: 1.8;">';
+            let paragraphCount = 0;
+
+            lines.forEach(line => {
+                if (!line.trim()) {
+                    paragraphCount++;
+                    if (paragraphCount >= 2) {
+                        resultHTML += '</div><div style="margin-top: 1em;">';
+                        paragraphCount = 1;
+                    } else {
+                        resultHTML += '<br><br>';
+                    }
+                    return;
+                } else {
+                    paragraphCount = 1;
+                }
+
+                const words = line.split(/\s+/).filter(word => word.trim());
+                if (words.length > 0) {
+                    const isStartOfParagraph = paragraphCount === 1;
+                    resultHTML += isStartOfParagraph ? '' : '<span style="margin-left: 0.1em;"> </span>';
+                    words.forEach(word => {
+                        resultHTML += processWord(word, boldPercent, restOpacity);
+                        resultHTML += '<span style="margin-left: 0.1em;"> </span>';
+                    });
+                }
+            });
+
+            resultHTML += '</div>';
+            return resultHTML;
+        }
+
+        function init() {
+            const sampleText = inputText.value;
+            const initialBold = parseInt(boldPercentSlider.value);
+            const initialOpacity = parseInt(opacitySlider.value);
+
+            boldDisplay.textContent = `${initialBold}%`;
+            boldValue.textContent = `${initialBold}%`;
+            opacityDisplay.textContent = `${initialOpacity}%`;
+            opacityValue.textContent = `${initialOpacity}%`;
+            helpBold.textContent = `${initialBold}%`;
+
+            const processedText = processText(sampleText, initialBold, initialOpacity);
+
+            outputText.style.opacity = '0';
+            outputText.style.transform = 'translateY(10px)';
+            outputText.style.transition = 'all 0.3s ease';
+
+            setTimeout(() => {
+                outputText.innerHTML = processedText;
+                outputText.style.opacity = '1';
+                outputText.style.transform = 'translateY(0)';
+            }, 100);
+        }
+
+        inputText.addEventListener('input', () => {
+            const bold = parseInt(boldPercentSlider.value);
+            const opacity = parseInt(opacitySlider.value);
+            const processedText = processText(inputText.value, bold, opacity);
+
+            outputText.style.opacity = '0';
+            setTimeout(() => {
+                outputText.innerHTML = processedText;
+                outputText.style.opacity = '1';
+            }, 100);
+        });
+
+        boldPercentSlider.addEventListener('input', (e) => {
+            const bold = parseInt(e.target.value);
+            const opacity = parseInt(opacitySlider.value);
+            boldDisplay.textContent = `${bold}%`;
+            boldValue.textContent = `${bold}%`;
+            helpBold.textContent = `${bold}%`;
+            if (inputText.value) {
+                outputText.innerHTML = processText(inputText.value, bold, opacity);
+            }
+        });
+
+        opacitySlider.addEventListener('input', (e) => {
+            const opacity = parseInt(e.target.value);
+            opacityDisplay.textContent = `${opacity}%`;
+            opacityValue.textContent = `${opacity}%`;
+            if (inputText.value) {
+                outputText.innerHTML = processText(inputText.value, parseInt(boldPercentSlider.value), opacity);
+            }
+        });
+
+        nightModeBtn.addEventListener('click', () => {
+            bodyTag.classList.toggle('night-mode');
+            nightModeBtn.classList.toggle('active');
+        });
+
+        fullscreenBtn.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.error(`Error al activar fullscreen: ${err.message}`);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        });
+
+        resultsBtn.addEventListener('click', () => {
+            bodyTag.classList.toggle('results-mode');
+            resultsBtn.classList.toggle('active');
+
+            if (bodyTag.classList.contains('results-mode')) {
+                resultsBtn.textContent = 'Editar';
+                const bold = parseInt(boldPercentSlider.value);
+                const opacity = parseInt(opacitySlider.value);
+                outputText.innerHTML = processText(inputText.value, bold, opacity);
+            } else {
+                resultsBtn.textContent = 'Mostrar Resultados';
+            }
+        });
+
+        // --- Lógica Gestual MVP8 (Hold to Adjust) ---
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let holdTimer;
+        let isAdjusting = false;
+        const holdDuration = 400; // ms
+
+        outputBox.addEventListener('touchstart', (e) => {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+
+            holdTimer = setTimeout(() => {
+                isAdjusting = true;
+                gestureIndicator.style.display = 'block';
+                // El preventDefault() se aplicará en el touchmove solo si isAdjusting es true
+            }, holdDuration);
+        }, { passive: false });
+
+        outputBox.addEventListener('touchmove', (e) => {
+            if (isAdjusting) {
+                // Bloquear scroll y selección cuando estamos ajustando
+                e.preventDefault();
+
+                const currentX = e.touches[0].clientX;
+                const currentY = e.touches[0].clientY;
+
+                const dx = currentX - touchStartX;
+                const dy = currentY - touchStartY;
+
+                const threshold = 10;
+
+                if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > threshold) {
+                    // Vertical: Opacidad
+                    let currentOpacity = parseInt(opacitySlider.value);
+                    if (dy < 0) { // Swipe Up -> Aumentar opacidad
+                        opacitySlider.value = Math.min(50, currentOpacity + 2);
+                    } else { // Swipe Down -> Disminuir opacidad
+                        opacitySlider.value = Math.max(0, currentOpacity - 2);
+                    }
+                    opacitySlider.dispatchEvent(new Event('input'));
+                } else if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > threshold) {
+                    // Horizontal: Bold (INVERTIDO)
+                    let currentBold = parseInt(boldPercentSlider.value);
+                    if (dx < 0) { // Swipe Left -> Disminuir Bold
+                        boldPercentSlider.value = Math.max(20, currentBold - 2);
+                    } else { // Swipe Right -> Aumentar Bold
+                        boldPercentSlider.value = Math.min(80, currentBold + 2);
+                    }
+                    boldPercentSlider.dispatchEvent(new Event('input'));
+                }
+            }
+            // Si no es hold, el navegador maneja el scroll y selección por defecto
+        }, { passive: false });
+
+        outputBox.addEventListener('touchend', () => {
+            clearTimeout(holdTimer);
+            isAdjusting = false;
+            gestureIndicator.style.display = 'none';
+        });
+
+        init();
+    </script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('PWA: Service Worker registrado', reg))
+          .catch(err => console.error('PWA: Error al registrar', err));
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChameleonLab | Suite</title>
+  <style>
+    /* 1. RESET Y CONFIGURACIÓN DEL LIENZO NEGRO ABSOLUTO */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body, html {
+      background-color: #000000;
+      color: #f3f4f6;
+      font-family: system-ui, -apple-system, sans-serif;
+      height: 100vh;
+      overflow: hidden; /* Bloquea el scroll nativo feo del navegador */
+    }
+
+    /* MARCA PRINCIPAL FLOTANTE */
+    .brand-header {
+      position: absolute;
+      top: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+      z-index: 10;
+      pointer-events: none;
+    }
+    .brand-header h1 {
+      font-size: 2.2rem;
+      background: linear-gradient(135deg, #10b981, #06b6d4, #8b5cf6); /* Tu paleta Cyberpunk */
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: 4px;
+      font-weight: 800;
+    }
+    .brand-header p {
+      color: #f97316; /* Naranja Neón */
+      font-size: 0.85rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    /* 2. CONTENEDOR DEL CARRUSEL TÁCTICO */
+    .carousel-stage {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ESTRUCTURA DE LA TARJETA FLOTANTE (ESTILO TONEHERO) */
+    .card-wrapper {
+      position: absolute;
+      width: 100%;
+      max-width: 750px;
+      padding: 20px;
+      opacity: 0;
+      transform: translateY(100vh) scale(0.8);
+      transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.5s ease;
+      pointer-events: none;
+    }
+
+    /* ESTADOS DEL CARRUSEL INFINITO EN 3D PLANO */
+    .card-wrapper.active {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+      z-index: 5;
+    }
+    .card-wrapper.prev {
+      opacity: 0.2;
+      transform: translateY(-80vh) scale(0.85);
+      z-index: 2;
+    }
+    .card-wrapper.next {
+      opacity: 0.2;
+      transform: translateY(80vh) scale(0.85);
+      z-index: 2;
+    }
+
+    /* LA TARJETA CINEMÁTICA CON HOVER TURQUESA */
+    .app-card {
+      background: rgba(11, 15, 25, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 28px;
+      padding: 35px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 25px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+      transition: border-color 0.3s ease;
+    }
+    .app-card:hover {
+      border-color: #06b6d4;
+    }
+
+    @media (min-width: 768px) {
+      .app-card {
+        grid-template-columns: 160px 1fr;
+        align-items: center;
+      }
+    }
+
+    /* EL ÍCONO CUADRADO NATIVO ESTILO MÓVIL */
+    .app-visual {
+      background: #000000;
+      border: 2px solid #1e293b;
+      border-radius: 24px;
+      aspect-ratio: 1/1;
+      width: 100%;
+      max-width: 160px;
+      justify-self: center;
+      overflow: hidden;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+    }
+    .app-visual img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* CONTENIDO Y BOTÓN DE INICIO */
+    .app-info {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .app-info h2 {
+      font-size: 2rem;
+      color: #ffffff;
+      font-weight: 700;
+    }
+    .app-info p {
+      color: #9ca3af;
+      line-height: 1.6;
+      font-size: 0.98rem;
+    }
+    .btn-launch {
+      align-self: flex-start;
+      background: linear-gradient(135deg, #10b981, #06b6d4);
+      color: #000000;
+      font-weight: 700;
+      text-decoration: none;
+      padding: 12px 26px;
+      border-radius: 14px;
+      font-size: 0.95rem;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.25);
+    }
+    .btn-launch:hover {
+      transform: scale(1.03);
+      opacity: 0.95;
+    }
+
+    /* INDICADORES DE POSICIÓN LATERALES (PUNTOS) */
+    .dots-indicator {
+      position: absolute;
+      right: 30px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 10;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #1e293b;
+      transition: background 0.3s ease, transform 0.3s ease;
+    }
+    .dot.active {
+      background: #06b6d4;
+      transform: scale(1.3);
+    }
+  </style>
+
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+
+  <!-- MARCA REGISTRADA FLOTANTE -->
+  <header class="brand-header">
+    <h1>CHAMELEONLAB</h1>
+    <p>chameleon.image • Suite</p>
+  </header>
+
+  <!-- ESCENARIO DEL CARRUSEL -->
+  <main class="carousel-stage" id="stage">
+
+    <!-- APLICACIÓN 1: TONEHERO -->
+    <div class="card-wrapper">
+      <section class="app-card">
+        <div class="app-visual">
+            <svg xmlns="http://w3.org" viewBox="0 0 512 512" width="100%" height="100%">
+              <!-- 1. EL LIENZO (Fondo Negro Absoluto de la suite) -->
+              <rect width="512" height="512" rx="128" fill="#000000"/>
+
+              <!-- 2. LA RETÍCULA (Matriz de muestreo sutil) -->
+              <path d="M 0,128 L 512,128 M 0,256 L 512,256 M 0,384 L 512,384 M 128,0 L 128,512 M 256,0 L 256,512 M 384,0 L 384,512"
+                    stroke="#1e293b" stroke-width="2" stroke-dasharray="8 8"/>
+
+              <!-- Contenedor centrado -->
+              <g transform="translate(10, 15)">
+
+                <!-- 3. LA "T" BASE EN VIOLETA (Sombra Base ULTRA GROSA para el Relieve 3D) -->
+                <!-- Le clavamos stroke-width="72" para que tenga un cuerpo masivo atrás -->
+                <path d="M 130,110 L 390,110 M 260,110 L 260,390"
+                      fill="none" stroke="#8b5cf6" stroke-width="72" stroke-linecap="round" stroke-linejoin="round" opacity="0.45"/>
+
+                <!-- 4. LA "T" PRINCIPAL EN TURQUESA (Frente - ULTRA GORDA) -->
+                <!-- Desplazada ligeramente. Domina el centro de la escena con un peso imponente -->
+                <path d="M 155,85 L 365,85 M 260,85 L 260,335"
+                      fill="none" stroke="#06b6d4" stroke-width="72" stroke-linecap="round" stroke-linejoin="round"/>
+
+                <!-- 5. EL NÚCLEO HALFTONE: PATRÓN DENTRO DE PATRÓN (Efecto Desvanecido) -->
+                <!-- El mástil de la T se desarma hacia abajo en una frecuencia de puntos concéntricos (Verde Neón) -->
+                <!-- Cada punto tiene un "sub-patrón" naranja adentro, simulando las múltiples escalas de tu app -->
+
+                <!-- Nodo Halftone Grande (Máxima densidad) -->
+                <circle cx="260" cy="85" r="32" fill="#f97316"/>
+                <circle cx="200" cy="85" r="16" fill="#f97316"/> <!-- El patrón de adentro -->
+                <circle cx="200" cy="200" r="6" fill="#ffffff" opacity="0" />  <!-- Centro brillante -->
+
+                <!-- Nodo Halftone Mediano (Desvaneciéndose) -->
+                <circle cx="260" cy="150" r="16" fill="#f97316"/>
+                <circle cx="160" cy="85" r="10" fill="#f97316"/> <!-- El patrón de adentro -->
+
+                <!-- Nodo Halftone Chico (Límite del muestreo) -->
+                <circle cx="260" cy="200" r="12" fill="#f97316"/>
+                <circle cx="260" cy="245" r="12" fill="#f97316"/>
+                <circle cx="260" cy="290" r="12" fill="#f97316"/>
+                <circle cx="260" cy="335" r="12" fill="#f97316"/>
+
+                <!-- 6. SATÉLITES DE LA NUBE DE PUNTOS PROPORCIONAL (Mapeo Tridimensional) -->
+                <!-- Puntos periféricos que flotan emulando el cuadro 3D de Processing -->
+                <circle cx="175" cy="260" r="14" fill="#f97316" opacity="0.8"/>
+                <circle cx="345" cy="260" r="14" fill="#f97316" opacity="0.8"/>
+                 <circle cx="175" cy="325" r="16" fill="#f97316" opacity="0.7"/>
+                <circle cx="345" cy="325" r="16" fill="#f97316" opacity="0.7"/>
+                <circle cx="175" cy="405" r="18" fill="#f97316" opacity="0.7"/>
+                <circle cx="345" cy="405" r="18" fill="#f97316" opacity="0.7"/>
+              </g>
+            </svg>
+
+
+        </div>
+        <div class="app-info">
+          <h2>ToneHero</h2>
+          <p>Procesador algorítmico y modular multimedia de vanguardia. Transforma imágenes y secuencias de video en tiempo real a patrones Halftone avanzados mediante un motor gestual táctil e interactivo.</p>
+          <a href="#" class="btn-launch" onclick="alert('Módulo protegido en desarrollo local.')">Abrir Componente</a>
+        </div>
+      </section>
+    </div>
+
+    <!-- APLICACIÓN 2: SND_NC -->
+    <div class="card-wrapper">
+      <section class="app-card">
+        <div class="app-visual">
+            <svg xmlns="http://w3.org" viewBox="0 0 512 512" width="100%" height="100%">
+              <!-- 1. EL LIENZO (Fondo Negro Absoluto Redondeado) -->
+              <rect width="512" height="512" rx="128" fill="#000000"/>
+
+              <!-- 2. LA RETÍCULA (Estética de editor de niveles / Grid) -->
+              <path d="M 0,128 L 512,128 M 0,256 L 512,256 M 0,384 L 512,384 M 128,0 L 128,512 M 256,0 L 256,512 M 384,0 L 384,512"
+                    stroke="#1e293b" stroke-width="2" stroke-dasharray="8 8"/>
+
+              <!-- 3. LA CRUZ QUE SOBRESALE (El núcleo de creación) -->
+              <!-- Línea Horizontal (Naranja Neón) -->
+              <line x1="60" y1="256" x2="452" y2="256" stroke="#f97316" stroke-width="24" stroke-linecap="round"/>
+              <!-- Línea Vertical (Turquesa Eléctrico) -->
+              <line x1="256" y1="60" x2="256" y2="452" stroke="#06b6d4" stroke-width="24" stroke-linecap="round"/>
+
+              <!-- 4. EL CÍRCULO CENTRAL DE CONFLICTO (La Arena / El Mundo) -->
+              <!-- Anillo exterior Verde Hacker para contener el Sandbox -->
+              <circle cx="256" cy="256" r="110" fill="none" stroke="#10b981" stroke-width="16"/>
+              <!-- Relleno central oscuro con transparencia para ver la cruz pasar por debajo -->
+              <circle cx="256" cy="256" r="102" fill="#0b0f19" opacity="0.85"/>
+
+              <!-- 5. DETALLES DE CORRECCIÓN (Puntos de anclaje de vértices) -->
+              <!-- Nodos en los extremos de la cruz que sobresalen (Naranja y Turquesa) -->
+              <circle cx="60" cy="256" r="18" fill="#f97316"/>
+              <circle cx="452" cy="256" r="18" fill="#f97316"/>
+              <circle cx="256" cy="60" r="18" fill="#06b6d4"/>
+              <circle cx="256" cy="452" r="18" fill="#06b6d4"/>
+
+              <!-- El núcleo del Creador: un píxel cuadrado de energía en el centro -->
+              <rect x="236" y="236" width="40" height="40" rx="8" fill="#ffffff" />
+            </svg>
+
+
+
+        </div>
+        <div class="app-info">
+          <h2>SND_nc</h2>
+          <p>Simulador físico e interactivo de partículas de arena. Cuenta con un robusto motor táctil integrado para diseñar, guardar y exportar escenarios personalizados en archivos de configuración locales.</p>
+          <a href="./Arena/index.html" class="btn-launch">Iniciar Sandbox</a>
+        </div>
+      </section>
+    </div>
+
+    <!-- APLICACIÓN 3: P-PAPER -->
+    <div class="card-wrapper">
+      <section class="app-card">
+        <div class="app-visual">
+            <svg xmlns="http://w3.org" viewBox="0 0 512 512" width="100%" height="100%">
+              <!-- 1. EL LIENZO (Fondo Negro Absoluto Redondeado igual al Sandbox) -->
+              <rect width="512" height="512" rx="128" fill="#000000"/>
+
+              <!-- 2. LA RETÍCULA (Estética de código/procedural) -->
+              <path d="M 0,128 L 512,128 M 0,256 L 512,256 M 0,384 L 512,384 M 128,0 L 128,512 M 256,0 L 256,512 M 384,0 L 384,512"
+                    stroke="#1e293b" stroke-width="2" stroke-dasharray="8 8"/>
+
+              <!-- Bloque contenedor movido un poco al centro -->
+              <g transform="translate(10, 10)">
+                <!-- 3. PRIMERA "P" (Fondo - Violeta Eléctrico / Estructura Base) -->
+                <!-- Usamos comandos 'M' (Mover a) y 'L' (Línea) y 'C' (Curva Bézier) para dibujar la P -->
+                <path d="M 160,390 L 160,130 C 160,130 200,90 280,90 C 350,90 370,130 370,170 C 370,220 330,250 280,250 L 160,250"
+                      fill="none" stroke="#8b5cf6" stroke-width="32" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
+
+                <!-- 4. SEGUNDA "P" (Frente - Turquesa / El Algoritmo) -->
+                <!-- Está desplazada +30px a la derecha y -30px hacia arriba para dar efecto 3D de capas -->
+                <path d="M 190,360 L 190,100 C 190,100 230,60 310,60 C 380,60 400,100 400,140 C 400,190 360,220 310,220 L 190,220"
+                      fill="none" stroke="#14d406" stroke-width="48" stroke-linecap="round" stroke-linejoin="round"/>
+
+                <!-- 5. NODOS DE CONEXIÓN PROCEDURAL (Naranja Neón) -->
+                <!-- Líneas de datos que interconectan ambas letras 'P' -->
+                <line x1="280" y1="90" x2="310" y2="60" stroke="#f97316" stroke-width="6" stroke-dasharray="6 4"/>
+                <line x1="280" y1="250" x2="310" y2="220" stroke="#f97316" stroke-width="6" stroke-dasharray="6 4"/>
+                <line x1="370" y1="170" x2="400" y2="140" stroke="#f97316" stroke-width="6" stroke-dasharray="6 4"/>
+
+                <!-- Círculos que actúan como puntos de código/vértices en los extremos -->
+                <circle cx="310" cy="60" r="14" fill="#f97316"/>
+                <circle cx="310" cy="220" r="14" fill="#f97316"/>
+                <circle cx="400" cy="140" r="14" fill="#f97316"/>
+                <circle cx="190" cy="360" r="14" fill="#10b981"/> <!-- Punto de anclaje Verde en la base -->
+              </g>
+            </svg>
+
+
+
+        </div>
+        <div class="app-info">
+          <h2>P-Paper</h2>
+          <p>Generador dinámico de paisajes geométricos y ondas matemáticas en vivo. Un lienzo procedural autónomo de alta resolución, ideal para portar offline como fondo de pantalla vivo permanente.</p>
+          <a href="./P-Paper/index.html" class="btn-launch">Lanzar Motor</a>
+        </div>
+      </section>
+    </div>
+
+    <!-- APLICACIÓN 4: L-PREDICTOR -->
+    <div class="card-wrapper">
+      <section class="app-card">
+        <div class="app-visual">
+            <svg xmlns="http://w3.org" viewBox="0 0 512 512" width="100%" height="100%">
+              <!-- 1. EL LIENZO (Mismo Fondo Negro Absoluto Redondeado de la suite) -->
+              <rect width="512" height="512" rx="128" fill="#000000"/>
+
+              <!-- 2. LA RETÍCULA (Estética de matriz de datos de la suite) -->
+              <path d="M 0,128 L 512,128 M 0,256 L 512,256 M 0,384 L 512,384 M 128,0 L 128,512 M 256,0 L 256,512 M 384,0 L 384,512"
+                    stroke="#1e293b" stroke-width="2" stroke-dasharray="8 8"/>
+
+              <!-- Contenedor centrado -->
+              <g transform="translate(10, 10)">
+
+                <!-- 3. LA "L" IDENTIFICATORIA (Violeta sutil al fondo para el relieve 3D) -->
+                <path d="M 140,100 L 140,380 L 360,380"
+                      fill="none" stroke="#8b5cf6" stroke-width="42" stroke-linecap="round" stroke-linejoin="round" opacity="0.4"/>
+
+                <!-- 4. BLOQUES DE "PALABRAS" PROPORCIONALES (El núcleo del algoritmo) -->
+                <!-- Simulamos 3 palabras de distintos largos donde el final se borra con un corte limpio -->
+
+                <!-- Palabra Corta (No se borra casi nada - Verde Neón) -->
+                <line x1="160" y1="100" x2="300" y2="100"
+            stroke="#10b981" stroke-width="36" stroke-linecap="round"/>
+
+                <!-- Palabra Mediana (Se borra el final - Naranja Neón) -->
+                <line x1="160" y1="180" x2="380" y2="180" stroke="#f97316" stroke-width="36" stroke-linecap="round"/>
+                <!-- Segmento recortado/borrado de la palabra mediana (discontinuo/fantasma) -->
+                <line x1="405" y1="180" x2="440" y2="180" stroke="#f97316" stroke-width="12" stroke-dasharray="6 6" opacity="0.3" stroke-linecap="round"/>
+
+                <!-- Palabra Larga (Se borra un pedazo grande proporcional - Turquesa) -->
+                <line x1="160" y1="260" x2="340" y2="260" stroke="#06b6d4" stroke-width="36" stroke-linecap="round"/>
+                <!-- Gran segmento recortado/borrado (discontinuo/fantasma) -->
+                <line x1="370" y1="260" x2="450" y2="260" stroke="#06b6d4" stroke-width="12" stroke-dasharray="6 6" opacity="0.3" stroke-linecap="round"/>
+
+                <!-- 5. MARCADOR DE RECORTE (La regla proporcional del algoritmo) -->
+                <!-- Una línea vertical fina blanca que marca el límite del "hachazo" que calcula tu JS -->
+                <line x1="355" y1="100" x2="355" y2="380" stroke="#ffffff" stroke-width="4" stroke-dasharray="4 4" opacity="0.6"/>
+
+                <!-- Nodos del algoritmo en los puntos de corte -->
+                <circle cx="380" cy="180" r="10" fill="#ffffff"/>
+                <circle cx="340" cy="260" r="10" fill="#ffffff"/>
+              </g>
+            </svg>
+
+
+
+
+
+        </div>
+        <div class="app-info">
+          <h2>L-Predictor</h2>
+          <p>Herramienta avanzada de entrenamiento cognitivo y lectura veloz. Su algoritmo recorta de forma proporcional las letras finales de las palabras, forzando al cerebro a activar su procesamiento predictivo visual.</p>
+          <a href="./L-Predictor/index.html" class="btn-launch">Iniciar Desafío</a>
+        </div>
+      </section>
+    </div>
+
+  </main>
+
+  <!-- PUNTOS LATERALES -->
+  <div class="dots-indicator" id="dotsContainer"></div>
+
+  <!-- 3. LÓGICA DEL CARRUSEL INFINITO GESTUAL -->
+  <script>
+    const cards = document.querySelectorAll('.card-wrapper');
+    const stage = document.getElementById('stage');
+    const dotsContainer = document.getElementById('dotsContainer');
+    let currentIndex = 0;
+    let isMoving = false;
+    let touchStartY = 0;
+
+    // Generar puntos dinámicamente
+    cards.forEach((_, i) => {
+      const dot = document.createElement('div');
+      dot.className = `dot ${i === 0 ? 'active' : ''}`;
+      dotsContainer.appendChild(dot);
+    });
+    const dots = document.querySelectorAll('.dot');
+
+    // Función de actualización de la escena en bucle continuo
+    function updateCarousel() {
+      const total = cards.length;
+      cards.forEach((card, index) => {
+        card.className = 'card-wrapper'; // Limpia clases
+
+        // Cálculo matemático del bucle infinito (Loop index continuo)
+        if (index === currentIndex) {
+          card.classList.add('active');
+        } else if (index === (currentIndex - 1 + total) % total) {
+          card.classList.add('prev');
+        } else if (index === (currentIndex + 1) % total) {
+          card.classList.add('next');
+        }
+      });
+
+      dots.forEach((dot, i) => {
+        dot.className = `dot ${i === currentIndex ? 'active' : ''}`;
+      });
+    }
+
+    function changeSlide(direction) {
+      if (isMoving) return;
+      isMoving = true;
+      const total = cards.length;
+
+      // El "seamless loop" nativo: el índice gira sin fin en ambos sentidos
+      currentIndex = (currentIndex + direction + total) % total;
+      updateCarousel();
+
+      setTimeout(() => isMoving = false, 600); // Bloqueo de rebote por inercia
+    }
+
+    // EVENTO 1: Captura de la rueda del ratón (Mice)
+    window.addEventListener('wheel', (e) => {
+      if (e.deltaY > 0) changeSlide(1);  // Scroll abajo -> Siguiente
+      else if (e.deltaY < 0) changeSlide(-1); // Scroll arriba -> Anterior
+    });
+
+    // EVENTO 2: Captura Gestual Táctil (Móviles)
+    window.addEventListener('touchstart', (e) => {
+      touchStartY = e.touches[0].clientY;
+    });
+
+    window.addEventListener('touchend', (e) => {
+      const touchEndY = e.changedTouches[0].clientY;
+      const diffY = touchStartY - touchEndY;
+
+      if (Math.abs(diffY) > 50) { // Umbral de tolerancia táctil
+        if (diffY > 0) changeSlide(1);  // Desliza hacia arriba -> Siguiente
+        else changeSlide(-1);           // Desliza hacia abajo -> Anterior
+      }
+    });
+
+    // Inicialización del motor en frío
+    updateCarousel();
+  </script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('PWA: Service Worker registrado', reg))
+          .catch(err => console.error('PWA: Error al registrar', err));
+      });
+    }
+  </script>
+</body>
+</html>

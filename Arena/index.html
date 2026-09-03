@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Falling Sand — Sandbox</title>
+<style>
+  :root{
+    --bg-0:#0d0e12; --bg-1:#14151c;
+    --card:#191b22; --card-2:#20232c;
+    --stroke:rgba(255,255,255,.07);
+    --text:#e8eaf1; --muted:#9aa1b0;
+    --accent:#6ea8ff; --accent-soft:rgba(110,168,255,.18);
+    --danger:#ff6b6b; --ok:#55ff33;
+    --empty:#1e1e24;
+    --radius:16px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;min-height:100%;}
+  body{
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--text);
+    background:
+      radial-gradient(1200px 600px at 50% -10%, #1b1d27 0%, transparent 60%),
+      radial-gradient(900px 500px at 100% 120%, #171a22 0%, transparent 55%),
+      linear-gradient(180deg,var(--bg-1),var(--bg-0));
+    display:flex; align-items:flex-start; justify-content:center;
+    min-height:100vh; padding:20px;
+  }
+  .app{width:100%;max-width:1200px;}
+  .topbar{display:flex; align-items:baseline; gap:12px; margin-bottom:14px; padding:0 4px; flex-wrap:wrap;}
+  .brand{display:flex; align-items:center; gap:10px;}
+  .brand .dot{
+    width:14px; height:14px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #8aff5a, var(--accent));
+    box-shadow:0 0 14px -2px var(--accent);
+  }
+  .brand h1{font-size:20px; margin:0; font-weight:700; letter-spacing:.2px;}
+  .topbar .sub{color:var(--muted); font-size:13px;}
+
+  .layout{display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap; justify-content:center;}
+  .card{
+    background:linear-gradient(180deg,var(--card),#171922);
+    border:1px solid var(--stroke);
+    border-radius:var(--radius);
+    box-shadow:0 20px 40px -20px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.03);
+  }
+
+  /* Stage */
+  .stage{padding:18px; display:flex; flex-direction:column; align-items:center; gap:12px; flex:1 1 auto; min-width:0;}
+  .board{
+    position:relative; width:100%; max-width:400px;
+    border:1px solid rgba(255,255,255,.08); border-radius:12px; overflow:hidden;
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.4), 0 10px 30px -12px rgba(0,0,0,.8);
+    background:var(--empty);
+  }
+  canvas#board{
+    display:block; width:100%; height:auto; background:var(--empty);
+    image-rendering:pixelated; image-rendering:crisp-edges;
+    touch-action:none; user-select:none; cursor:crosshair;
+  }
+  .board::after{
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background:linear-gradient(180deg, rgba(255,255,255,.05), transparent 20%);
+    mix-blend-mode:screen;
+  }
+  .hint{color:var(--muted); font-size:12.5px; letter-spacing:.2px; margin:0; text-align:center; line-height:1.5;}
+  .hint b{color:var(--text); font-weight:600;}
+
+  /* Panel */
+  .panel{width:320px; padding:18px; display:flex; flex-direction:column; gap:18px;}
+  .group{display:flex; flex-direction:column; gap:10px;}
+  .group .head{display:flex; align-items:baseline; justify-content:space-between; gap:8px;}
+  .group h2{margin:0; font-size:11px; text-transform:uppercase; letter-spacing:.14em; color:var(--muted); font-weight:700;}
+  .dim{font-size:12px; color:var(--text); font-variant-numeric:tabular-nums; background:var(--card-2); border:1px solid var(--stroke); border-radius:8px; padding:3px 7px;}
+
+  /* Material buttons */
+  .mats{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .mat,.mode{
+    display:flex; align-items:center; gap:10px; padding:11px 12px; border-radius:10px;
+    background:var(--card-2); color:var(--text); border:1px solid var(--stroke); cursor:pointer;
+    font:inherit; font-size:14px; font-weight:600; letter-spacing:.2px;
+    transition:transform .08s ease, border-color .15s ease, box-shadow .2s ease, background .15s ease;
+  }
+  .mat .sw{width:14px; height:14px; border-radius:5px; background:var(--sw); box-shadow:inset 0 0 0 1px rgba(0,0,0,.35); flex:0 0 auto;}
+  .mat .sw.eraser{background:transparent; border:1px dashed rgba(255,255,255,.35); box-shadow:none;}
+  .mat:hover,.mode:hover{transform:translateY(-1px); border-color:rgba(255,255,255,.18);}
+  .mat.active,.mode.active{
+    border-color:var(--accent); background:linear-gradient(180deg,#232734,#1c1f28);
+    box-shadow:0 0 0 1px var(--accent), 0 0 18px -6px var(--accent);
+  }
+  .modes{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .mode{justify-content:center;}
+  .mode .lbl{font-size:13px;}
+
+  /* Slider */
+  .slider-row{display:flex; align-items:center; gap:12px;}
+  .slider-row .val{min-width:30px; text-align:center; font-variant-numeric:tabular-nums; font-weight:700; background:var(--card-2); border:1px solid var(--stroke); border-radius:8px; padding:4px 6px; font-size:13px;}
+  input[type="range"]{
+    -webkit-appearance:none; appearance:none; width:100%; height:6px; border-radius:999px; outline:none;
+    background:linear-gradient(90deg, var(--accent) 0 25%, #2a2d37 25% 100%);
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none; width:18px; height:18px; border-radius:50%;
+    background:var(--accent); border:2px solid var(--bg-0); box-shadow:0 0 0 3px var(--accent-soft); cursor:pointer; margin-top:-6px;
+  }
+  input[type="range"]::-moz-range-thumb{width:16px; height:16px; border-radius:50%; background:var(--accent); border:2px solid var(--bg-0); box-shadow:0 0 0 3px var(--accent-soft); cursor:pointer;}
+  input[type="range"]::-webkit-slider-runnable-track{height:6px; border-radius:999px;}
+  input[type="range"]::-moz-range-track{height:6px; border-radius:999px; background:#2a2d37;}
+
+  /* Action buttons */
+  .actions{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .btn{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    padding:11px 12px; border-radius:10px; cursor:pointer; text-align:center;
+    font:inherit; font-size:13.5px; font-weight:600; letter-spacing:.2px;
+    background:var(--card-2); color:var(--text); border:1px solid var(--stroke);
+    transition:transform .08s ease, background .15s ease, border-color .15s ease;
+  }
+  .btn:hover{transform:translateY(-1px); border-color:rgba(255,255,255,.2);}
+  .btn.clear{color:var(--danger); border-color:rgba(255,107,107,.35);}
+  .btn.clear:hover{background:rgba(255,107,107,.08); border-color:rgba(255,107,107,.6);}
+  .btn.pause{color:var(--accent); border-color:rgba(110,168,255,.35);}
+  .btn.pause:hover{background:rgba(110,168,255,.08); border-color:rgba(110,168,255,.6);}
+  .btn.pause.on{background:var(--accent); color:#0c1420; border-color:var(--accent);}
+  .btn.fs{color:var(--accent); border-color:rgba(110,168,255,.35);}
+  .btn.fs:hover{background:rgba(110,168,255,.08);}
+  .btn.sound{color:var(--ok); border-color:rgba(85,255,51,.3);}
+  .btn.sound:hover{background:rgba(85,255,51,.08);}
+  .file{width:100%;}
+  .file input{display:none;}
+  .file{color:var(--ok); border-color:rgba(85,255,51,.3);}
+  .save{color:var(--accent); border-color:rgba(110,168,255,.35);}
+  .save:hover{background:rgba(110,168,255,.08);}
+
+  /* Fullscreen layout */
+  body.is-fs{padding:0;}
+  body.is-fs .topbar{display:none;}
+  body.is-fs .app{max-width:none; min-height:100vh; display:flex; flex-direction:column; justify-content:center; gap:14px;}
+  body.is-fs .layout{flex-direction:column; align-items:center;}
+  body.is-fs .stage{padding:10px;}
+  body.is-fs .panel{width:min(720px,96vw);}
+
+  @media (max-width:760px){
+    .layout{flex-direction:column; align-items:center;}
+    .panel{width:min(420px,100%);}
+  }
+</style>
+
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="brand"><span class="dot"></span><h1>Falling&nbsp;Sand</h1></div>
+      <span class="sub">Sandbox de autómatas · guardalo y pasalo en .json</span>
+    </div>
+
+    <div class="layout">
+      <!-- Stage -->
+      <div class="stage card">
+        <div class="board" id="frame">
+          <canvas id="board" width="400" height="400"></canvas>
+        </div>
+        <p class="hint"><b>Arrastrá</b> para pintar · <b>Espacio</b> pausa · <b>1–4</b> materiales · <b>E</b> borrador<br><b>C</b> limpiar · <b>F</b> pantalla completa · <b>M</b> sonido</p>
+      </div>
+
+      <!-- Control Panel -->
+      <div class="panel card">
+        <div class="group">
+          <div class="head"><h2>Lienzo</h2><span id="dims" class="dim">100×100</span></div>
+          <div class="modes">
+            <button class="mode" data-preset="square"><span class="lbl">Cuadrado 1:1</span></button>
+            <button class="mode" data-preset="wide"><span class="lbl">Ancho 2:1</span></button>
+          </div>
+        </div>
+
+        <div class="group">
+          <h2>Material</h2>
+          <div class="mats">
+            <button class="mat" data-mat="1" style="--sw:#e9c46a"><span class="sw"></span><span class="lbl">Arena</span></button>
+            <button class="mat" data-mat="2" style="--sw:#457b9d"><span class="sw"></span><span class="lbl">Agua</span></button>
+            <button class="mat" data-mat="3" style="--sw:#6c757d"><span class="sw"></span><span class="lbl">Muro</span></button>
+            <button class="mat" data-mat="4" style="--sw:#55ff33"><span class="sw"></span><span class="lbl">Ácido</span></button>
+            <button class="mat" data-mat="0" style="--sw:transparent"><span class="sw eraser"></span><span class="lbl">Borrar</span></button>
+          </div>
+        </div>
+
+        <div class="group">
+          <h2>Cepillo</h2>
+          <div class="slider-row">
+            <input id="brush" type="range" min="1" max="14" value="3" step="1" aria-label="Tamaño de cepillo">
+            <span id="brushVal" class="val">3</span>
+          </div>
+        </div>
+
+        <div class="group">
+          <h2>Mundo (.json)</h2>
+          <div class="actions">
+            <button id="saveBtn" class="btn save">Guardar .json</button>
+            <label class="btn file" for="file">Cargar .json<input id="file" type="file" accept="application/json,.json"></label>
+          </div>
+        </div>
+
+        <div class="group">
+          <h2>Acciones</h2>
+          <div class="actions">
+            <button id="clearBtn" class="btn clear">Limpiar</button>
+            <button id="pauseBtn" class="btn pause">Pausa</button>
+            <button id="fsBtn" class="btn fs">⛶ Pantalla completa</button>
+            <button id="soundBtn" class="btn sound">🔊 Sonido</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <noscript><p style="text-align:center;color:#9aa1b0">Este sandbox necesita JavaScript.</p></noscript>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ============ NÚCLEO: rejilla dinámica ============ */
+  const CELL = 4;              // 4 px por celda (nítido)
+  const EMPTY=0, SAND=1, WATER=2, WALL=3, ACID=4;
+  const COLS = [
+    [30,30,36],      // vacío  #1e1e24
+    [233,196,106],   // arena  #e9c46a
+    [69,123,157],    // agua   #457b9d
+    [108,117,125],   // muro   #6c757d
+    [85,255,51]      // ácido  #55ff33
+  ];
+  const PRESETS = { square:{w:100,h:100}, wide:{w:200,h:100} };
+
+  let gridW=100, gridH=100;
+  let grid  = new Uint8Array(gridW*gridH);
+  let stamp = new Uint32Array(gridW*gridH); // "último frame en que se movió" (anti-teletransporte)
+  let frame=0, movedCount=0;
+
+  /* ============ RENDER (buffer offscreen nítido) ============ */
+  const canvas = document.getElementById('board');
+  const frameEl= document.getElementById('frame');
+  const mainCtx= canvas.getContext('2d');
+  const off = document.createElement('canvas');
+  const offCtx= off.getContext('2d');
+  let img = null;
+  const dimsEl= document.getElementById('dims');
+
+  function setGridSize(w, h, preserve){
+    const oldW=gridW, oldH=gridH, oldGrid = preserve ? grid : null;
+    gridW=w; gridH=h;
+    grid  = new Uint8Array(w*h);
+    stamp = new Uint32Array(w*h);
+    if(oldGrid){ // conservar la escena (alineada arriba-izquierda)
+      const cw=Math.min(oldW,w), ch=Math.min(oldH,h);
+      for(let y=0;y<ch;y++) for(let x=0;x<cw;x++) grid[y*w+x]=oldGrid[y*oldW+x];
+    }
+    off.width=w; off.height=h;
+    img = offCtx.createImageData(w,h);
+    canvas.width = w*CELL; canvas.height = h*CELL;
+    mainCtx.imageSmoothingEnabled = false;
+    frameEl.style.maxWidth = (w*CELL)+'px';
+    dimsEl.textContent = w+'×'+h;
+    render();
+  }
+
+  function render(){
+    const d=img.data, total=gridW*gridH;
+    for(let i=0;i<total;i++){
+      const c=COLS[grid[i]], p=i<<2;
+      d[p]=c[0]; d[p+1]=c[1]; d[p+2]=c[2]; d[p+3]=255;
+    }
+    offCtx.putImageData(img,0,0);
+    mainCtx.drawImage(off,0,0,canvas.width,canvas.height);
+  }
+
+  /* ============ FÍSICA (de abajo hacia arriba) ============ */
+  function step(){
+    frame++; movedCount=0;
+    for(let y=gridH-1;y>=0;y--){
+      const row=y*gridW;
+      for(let x=0;x<gridW;x++){
+        const idx=row+x, t=grid[idx];
+        if(t===EMPTY||t===WALL) continue;      // estático
+        if(stamp[idx]===frame) continue;       // ya se movió este frame
+        if(t===SAND)      sand(x,y,idx);
+        else if(t===WATER)flow(x,y,idx,WATER);
+        else if(t===ACID) acid(x,y,idx);
+      }
+    }
+  }
+
+  function sand(x,y,idx){
+    if(y+1>=gridH) return;                    // apoyado en el piso
+    const d=(y+1)*gridW+x, b=grid[d];
+    // cae recto: se hunde en líquido (lo desplaza hacia arriba)
+    if(b===EMPTY||b===WATER||b===ACID){ grid[d]=SAND; grid[idx]=b; stamp[d]=frame; movedCount++; return; }
+    // bloqueado por arena/muro: desliza en diagonal (aleatorio izq/der primero)
+    const f=Math.random()<.5?1:-1, y2=y+1;
+    let nx=x+f;
+    if(nx>=0&&nx<gridW){ const dd=y2*gridW+nx; if(grid[dd]===EMPTY){ grid[dd]=SAND; grid[idx]=EMPTY; stamp[dd]=frame; movedCount++; return; } }
+    nx=x-f;
+    if(nx>=0&&nx<gridW){ const dd=y2*gridW+nx; if(grid[dd]===EMPTY){ grid[dd]=SAND; grid[idx]=EMPTY; stamp[dd]=frame; movedCount++; return; } }
+  }
+
+  function flow(x,y,idx,type){
+    const y2=y+1;
+    if(y2<gridH){
+      // 1) caer recto hacia vacío
+      const d=y2*gridW+x;
+      if(grid[d]===EMPTY){ grid[d]=type; grid[idx]=EMPTY; stamp[d]=frame; movedCount++; return; }
+      // 2) diagonal (aleatorio izq/der primero)
+      const f=Math.random()<.5?1:-1;
+      let nx=x+f;
+      if(nx>=0&&nx<gridW){ const dd=y2*gridW+nx; if(grid[dd]===EMPTY){ grid[dd]=type; grid[idx]=EMPTY; stamp[dd]=frame; movedCount++; return; } }
+      nx=x-f;
+      if(nx>=0&&nx<gridW){ const dd=y2*gridW+nx; if(grid[dd]===EMPTY){ grid[dd]=type; grid[idx]=EMPTY; stamp[dd]=frame; movedCount++; return; } }
+    }
+    // 3) esparcir en horizontal hasta topar contra muro/elemento
+    const hf=Math.random()<.5?1:-1;
+    let nx=x+hf;
+    if(nx>=0&&nx<gridW){ const dd=y*gridW+nx; if(grid[dd]===EMPTY){ grid[dd]=type; grid[idx]=EMPTY; stamp[dd]=frame; movedCount++; return; } }
+    nx=x-hf;
+    if(nx>=0&&nx<gridW){ const dd=y*gridW+nx; if(grid[dd]===EMPTY){ grid[dd]=type; grid[idx]=EMPTY; stamp[dd]=frame; movedCount++; return; } }
+  }
+
+  function acid(x,y,idx){
+    // disuelve: al tocar (arriba/abajo/izq/der) arena o muro, ambos -> vacío
+    let target=-1;
+    if(y>0){ const n=idx-gridW; if(grid[n]===SAND||grid[n]===WALL) target=n; }
+    if(target<0&&y+1<gridH){ const n=idx+gridW; if(grid[n]===SAND||grid[n]===WALL) target=n; }
+    if(target<0&&x>0){ const n=idx-1; if(grid[n]===SAND||grid[n]===WALL) target=n; }
+    if(target<0&&x+1<gridW){ const n=idx+1; if(grid[n]===SAND||grid[n]===WALL) target=n; }
+    if(target>=0){ grid[idx]=EMPTY; grid[target]=EMPTY; return; }
+    // si no hay nada que disolver, fluye igual que el agua
+    flow(x,y,idx,ACID);
+  }
+
+  /* ============ SONIDO (Web Audio, sintetizado) ============ */
+  let audioCtx=null, masterGain=null, muted=false, lastGrain=0, noiseBuffer=null;
+  function ensureAudio(){
+    if(muted) return null;
+    try{
+      const AC=window.AudioContext||window.webkitAudioContext;
+      if(!AC) return null;
+      if(!audioCtx){
+        audioCtx=new AC();
+        masterGain=audioCtx.createGain();
+        masterGain.gain.value=0.18;
+        masterGain.connect(audioCtx.destination);
+      }
+      if(audioCtx.state==="suspended"&&audioCtx.resume) audioCtx.resume();
+    }catch(_){ return null; }
+    return audioCtx;
+  }
+  function uiClick(){
+    const ctx=ensureAudio(); if(!ctx) return;
+    const t=ctx.currentTime;
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type="triangle"; o.frequency.setValueAtTime(440,t); o.frequency.exponentialRampToValueAtTime(680,t+0.05);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.14,t+0.005); g.gain.exponentialRampToValueAtTime(0.0001,t+0.09);
+    o.connect(g).connect(masterGain); o.start(t); o.stop(t+0.1);
+  }
+  function getNoise(){
+    if(!noiseBuffer){
+      const len=Math.floor(audioCtx.sampleRate*0.3);
+      noiseBuffer=audioCtx.createBuffer(1,len,audioCtx.sampleRate);
+      const d=noiseBuffer.getChannelData(0);
+      for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+    }
+    return noiseBuffer;
+  }
+  function grain(intensity){
+    const ctx=ensureAudio(); if(!ctx) return;
+    const now=performance.now(); if(now-lastGrain<70) return; lastGrain=now;
+    const t=ctx.currentTime;
+    const src=ctx.createBufferSource(); src.buffer=getNoise();
+    const bp=ctx.createBiquadFilter(); bp.type="bandpass"; bp.frequency.value=1800; bp.Q.value=1.2;
+    const g=ctx.createGain();
+    const vol=Math.min(0.22, 0.03+intensity*0.2);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.006); g.gain.exponentialRampToValueAtTime(0.0001,t+0.12);
+    src.connect(bp).connect(g).connect(masterGain); src.start(t); src.stop(t+0.14);
+  }
+  function chime(){
+    const ctx=ensureAudio(); if(!ctx) return;
+    const t=ctx.currentTime;
+    [523.25, 783.99].forEach((f,i)=>{
+      const o=ctx.createOscillator(), g=ctx.createGain();
+      o.type="sine"; o.frequency.value=f;
+      const st=t+i*0.08;
+      g.gain.setValueAtTime(0.0001,st); g.gain.exponentialRampToValueAtTime(0.12,st+0.02); g.gain.exponentialRampToValueAtTime(0.0001,st+0.25);
+      o.connect(g).connect(masterGain); o.start(st); o.stop(st+0.28);
+    });
+  }
+
+  /* ============ INTERACCIÓN: pintura por puntero ============ */
+  let currentMat=SAND, brushRadius=3, running=true;
+  function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+
+  function paint(cx,cy){
+    const r=brushRadius;
+    for(let dy=-r;dy<=r;dy++){
+      const ny=cy+dy; if(ny<0||ny>=gridH) continue;
+      const row=ny*gridW;
+      for(let dx=-r;dx<=r;dx++){
+        if(dx*dx+dy*dy>r*r) continue;
+        const nx=cx+dx; if(nx<0||nx>=gridW) continue;
+        grid[row+nx]=currentMat;
+      }
+    }
+  }
+  function lineTo(x0,y0,x1,y1){
+    const steps=Math.max(Math.abs(x1-x0),Math.abs(y1-y0));
+    if(steps===0){ paint(x1,y1); return; }
+    for(let i=0;i<=steps;i++){ const t=i/steps; paint(Math.round(x0+(x1-x0)*t), Math.round(y0+(y1-y0)*t)); }
+  }
+  function cellOf(e){
+    const r=canvas.getBoundingClientRect();
+    const cx=(e.clientX-r.left)/r.width*gridW;
+    const cy=(e.clientY-r.top)/r.height*gridH;
+    return { x:clamp(Math.floor(cx),0,gridW-1), y:clamp(Math.floor(cy),0,gridH-1) };
+  }
+
+  let painting=false, px=-1, py=-1, autoTried=false;
+  function maybeAutoFS(){
+    if(autoTried) return;
+    let coarse=true, mobile=true;
+    try{ coarse=matchMedia('(pointer:coarse)').matches; mobile=matchMedia('(max-width:1024px)').matches; }catch(_){}
+    if(!coarse||!mobile) return;
+    autoTried=true;
+    requestFS();
+  }
+  canvas.addEventListener('pointerdown', e=>{
+    ensureAudio(); maybeAutoFS();
+    painting=true; try{ canvas.setPointerCapture(e.pointerId); }catch(_){}
+    const c=cellOf(e); px=c.x; py=c.y; paint(px,py);
+  });
+  canvas.addEventListener('pointermove', e=>{
+    if(!painting) return;
+    const c=cellOf(e); lineTo(px,py,c.x,c.y); px=c.x; py=c.y;
+  });
+  function stopPaint(){ painting=false; }
+  canvas.addEventListener('pointerup', stopPaint);
+  canvas.addEventListener('pointercancel', stopPaint);
+  window.addEventListener('pointerup', stopPaint);
+
+  /* ============ GUARDAR / CARGAR .json ============ */
+  const saveBtn=document.getElementById('saveBtn');
+  const fileInput=document.getElementById('file');
+
+  saveBtn.addEventListener('click', ()=>{
+    const payload={
+      app:"FallingSand", version:1,
+      width:gridW, height:gridH, savedAt:new Date().toISOString(),
+      cells:Array.from(grid)
+    };
+    const blob=new Blob([JSON.stringify(payload)],{type:"application/json"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url; a.download="falling-sand-"+gridW+"x"+gridH+"-"+Date.now()+".json";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+    chime();
+  });
+
+  fileInput.addEventListener('change', e=>{
+    const f=e.target.files&&e.target.files[0]; if(!f) return;
+    const r=new FileReader();
+    r.onload=ev=>{
+      try{ const data=JSON.parse(ev.target.result); loadWorld(data); chime(); }
+      catch(err){ alert("No se pudo cargar: "+((err&&err.message)?err.message:"formato inválido")); }
+    };
+    r.onerror=()=>alert("No se pudo leer el archivo.");
+    r.readAsText(f);
+    e.target.value="";
+  });
+
+  function loadWorld(data){
+    if(!data) throw new Error("archivo vacío");
+    const w=Math.floor(+data.width), h=Math.floor(+data.height);
+    if(!isFinite(w)||!isFinite(h)) throw new Error("faltan width/height");
+    if(w<1||w>1200||h<1||h>1200) throw new Error("dimensiones fuera de rango");
+    if(!Array.isArray(data.cells)) throw new Error("faltan cells");
+    if(data.cells.length!==w*h) throw new Error("los datos no cuadran con las dimensiones");
+    setGridSize(w,h,false);
+    for(let i=0;i<w*h;i++){ const v=data.cells[i]|0; if(v<0||v>4) throw new Error("celda inválida"); grid[i]=v; }
+    syncModeUI(); render();
+  }
+
+  /* ============ LIENZO (presets) ============ */
+  const modeBtns=Array.from(document.querySelectorAll('[data-preset]'));
+  modeBtns.forEach(b=>b.addEventListener('click',()=>{ applyPreset(b.dataset.preset); uiClick(); }));
+  function applyPreset(name){
+    const p=PRESETS[name];
+    if(p.w===gridW&&p.h===gridH){ syncModeUI(); return; }
+    setGridSize(p.w,p.h,true);
+    syncModeUI();
+  }
+  function syncModeUI(){
+    modeBtns.forEach(b=>{
+      const p=PRESETS[b.dataset.preset];
+      b.classList.toggle('active', p.w===gridW&&p.h===gridH);
+    });
+  }
+
+  /* ============ PANTALLA COMPLETA ============ */
+  const fsBtn=document.getElementById('fsBtn');
+  function requestFS(){
+    const el=document.documentElement;
+    try{
+      const fn=el.requestFullscreen||el.webkitRequestFullscreen||el.mozRequestFullScreen||el.msRequestFullscreen;
+      if(fn){ const p=fn.call(el); if(p&&p.catch) p.catch(()=>{}); }
+    }catch(_){}
+  }
+  function exitFS(){
+    const el=document.documentElement;
+    try{ (document.exitFullscreen||document.webkitExitFullscreen||document.mozCancelFullScreen||document.msExitFullscreen)
+      ? (document.exitFullscreen||document.webkitExitFullscreen||document.mozCancelFullScreen||document.msExitFullscreen)()
+      : null; }catch(_){}
+  }
+  fsBtn.addEventListener('click',()=>{ document.fullscreenElement?exitFS():requestFS(); uiClick(); });
+  document.addEventListener('fullscreenchange',()=>{
+    document.body.classList.toggle('is-fs', !!document.fullscreenElement);
+    fsBtn.textContent=document.fullscreenElement?"✕ Salir de pantalla":"⛶ Pantalla completa";
+  });
+
+  /* ============ BOTONES: material / cepillo / limpiar / pausa / sonido ============ */
+  const matBtns=Array.from(document.querySelectorAll('[data-mat]'));
+  function selectMatVal(val){ currentMat=val; matBtns.forEach(b=>b.classList.toggle('active',(+b.dataset.mat===val))); }
+  matBtns.forEach(b=>b.addEventListener('click',()=>{ selectMatVal(+b.dataset.mat); uiClick(); }));
+  selectMatVal(SAND);
+
+  document.getElementById('clearBtn').addEventListener('click',()=>{ grid.fill(EMPTY); uiClick(); });
+
+  const pauseBtn=document.getElementById('pauseBtn');
+  pauseBtn.addEventListener('click',()=>{
+    running=!running;
+    pauseBtn.textContent=running?"Pausa":"Reanudar";
+    pauseBtn.classList.toggle('on',!running);
+    uiClick();
+  });
+
+  const soundBtn=document.getElementById('soundBtn');
+  soundBtn.addEventListener('click',()=>{
+    muted=!muted;
+    if(!muted) ensureAudio();
+    soundBtn.textContent=muted?"🔇 Silencio":"🔊 Sonido";
+    uiClick();
+  });
+
+  const slider=document.getElementById('brush');
+  const brushVal=document.getElementById('brushVal');
+  function updateSlider(){
+    brushRadius=+slider.value; brushVal.textContent=brushRadius;
+    const min=+slider.min,max=+slider.max,v=+slider.value;
+    const pct=((v-min)/(max-min))*100;
+    slider.style.background="linear-gradient(90deg, var(--accent) 0 "+pct+"%, #2a2d37 "+pct+"% 100%)";
+  }
+  slider.addEventListener('input',updateSlider); updateSlider();
+
+  /* ============ ATAJOS ============ */
+  window.addEventListener('keydown', e=>{
+    const k=e.key.toLowerCase();
+    if(k===' '){ e.preventDefault(); pauseBtn.click(); }
+    else if(k==='1') selectMatVal(SAND);
+    else if(k==='2') selectMatVal(WATER);
+    else if(k==='3') selectMatVal(WALL);
+    else if(k==='4') selectMatVal(ACID);
+    else if(k==='e') selectMatVal(EMPTY);
+    else if(k==='c') document.getElementById('clearBtn').click();
+    else if(k==='f') fsBtn.click();
+    else if(k==='m') soundBtn.click();
+  });
+
+  /* ============ BUCLE PRINCIPAL ============ */
+  function loop(){
+    if(running){
+      step();
+      if(!muted&&movedCount>=2) grain(Math.min(1, movedCount/60));
+    }
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  /* ============ INICIO ============ */
+  setGridSize(PRESETS.square.w, PRESETS.square.h, false);
+  syncModeUI();
+  requestAnimationFrame(loop);
+})();
+</script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('PWA: Service Worker registrado', reg))
+          .catch(err => console.error('PWA: Error al registrar', err));
+      });
+    }
+  </script>
+  <!-- Estilos visuales optimizados (Más compactos y discretos) -->
+  <style>
+    #banner-ios-pwa {
+      position: fixed;
+      top: 15px; /* Cambiado a la parte superior para no tapar los controles del cepillo abajo */
+      left: 50%;
+      transform: translateX(-50%);
+      width: 88%;
+      max-width: 350px;
+      background-color: rgba(22, 27, 34, 0.95); /* Ligeramente transparente para integrarse mejor */
+      color: #c9d1d9;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 12px;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      box-shadow: 0px 6px 20px rgba(0, 0, 0, 0.6);
+      z-index: 99999;
+      display: none;
+      animation: aparecerSuave 0.4s ease-out;
+    }
+
+    @keyframes aparecerSuave {
+      from { top: -50px; opacity: 0; }
+      to { top: 15px; opacity: 1; }
+    }
+
+    .pwa-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .pwa-titulo {
+      font-weight: bold;
+      color: #58a6ff;
+      font-size: 0.95em;
+    }
+
+    .pwa-cerrar {
+      background: none;
+      border: none;
+      color: #8b949e;
+      font-size: 1.2em;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0 4px;
+    }
+
+    .pwa-texto {
+      font-size: 0.85em;
+      line-height: 1.3;
+      margin: 0;
+    }
+
+    .pwa-boton-ios {
+      display: inline-block;
+      background-color: #21262d;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-weight: bold;
+      color: #ffffff;
+      font-size: 0.9em;
+    }
+  </style>
+    <!-- Estructura HTML del mensaje flotante discreto -->
+  <div id="banner-ios-pwa">
+    <div class="pwa-header">
+      <span class="pwa-titulo">📲 Instala Falling Sand</span>
+      <button class="pwa-cerrar" onclick="cerrarBannerIOS()">&times;</button>
+    </div>
+    <p class="pwa-texto">
+      Toca <span class="pwa-boton-ios">Compartir 📤</span> en Safari y luego
+      <span class="pwa-boton-ios">Añadir a la pantalla de inicio ➕</span> para jugar sin navegador.
+    </p>
+  </div>
+
+  <!-- Lógica de detección con temporizador de 7 segundos -->
+  <script>
+    window.addEventListener('load', () => {
+      // 1. Detectar si es un dispositivo de Apple (iOS)
+      const esIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+      // 2. Detectar si se está abriendo desde el navegador normal (no instalado)
+      const noEstaInstalado = !('standalone' in window.navigator) || !window.navigator.standalone;
+
+      if (esIOS && noEstaInstalado) {
+        const banner = document.getElementById('banner-ios-pwa');
+        banner.style.display = 'block';
+
+        // Cerrar automáticamente el cartel tras 7000 milisegundos (7 segundos)
+        setTimeout(() => {
+          cerrarBannerIOS();
+        }, 7000);
+      }
+    });
+
+    function cerrarBannerIOS() {
+      const banner = document.getElementById('banner-ios-pwa');
+      if (banner) {
+        banner.style.display = 'none';
+      }
+    }
+  </script>
+</body>
+</html>
